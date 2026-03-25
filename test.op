@@ -6,3 +6,18 @@ for(mut int i = 1; i < size; i = i + 1) {
     print(calculation);
   }
 }
+
+mut int num = 10;
+
+if(num > 5) {
+  print("Works");
+} else if (num < 5) {
+  print("Works");
+} else {
+  print("Works as well");
+}
+
+while(num < 20) {
+  num = num + 1;
+  print(num);
+}

@@ -60,7 +60,6 @@ pub enum Statement {
         body: Box<Statement>,
     },
 
-
     ForLoop {
         init: Box<Statement>,
         condition: Expression,

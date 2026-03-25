@@ -6,7 +6,7 @@ pub struct Analyzer {
     space_cost: usize,
     current_depth: usize,
     max_depth: usize,
-    memory: HashMap<String, Literal>, // The Interpreter's Memory Bank
+    memory: HashMap<String, Literal>,
 }
 
 impl Analyzer {
@@ -34,26 +34,51 @@ impl Analyzer {
                 self.space_cost += 1;
                 self.time_cost += 1;
                 let val = self.evaluate_expression(value);
-                self.memory.insert(name.clone(), val); // Store in memory
+                self.memory.insert(name.clone(), val);
             }
             Statement::Assignment { name, value } => {
                 self.time_cost += 1;
                 let val = self.evaluate_expression(value);
-                self.memory.insert(name.clone(), val); // Update memory
+                self.memory.insert(name.clone(), val);
             }
             Statement::Print(expr) => {
                 self.time_cost += 1;
                 let val = self.evaluate_expression(expr);
                 print!("> ");
-                Self::print_literal(&val);
-            }
-            Statement::Expression(expr) => {
-                self.evaluate_expression(expr);
+                self.print_literal(&val);
             }
             Statement::Block(stmts) => {
                 for s in stmts {
                     self.execute_statement(s);
                 }
+            }
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                self.time_cost += 1;
+                let cond = self.evaluate_expression(condition);
+                if let Literal::Bool(true) = cond {
+                    self.execute_statement(then_branch);
+                } else if let Some(else_b) = else_branch {
+                    self.execute_statement(else_b);
+                }
+            }
+            Statement::WhileLoop { condition, body } => {
+                self.current_depth += 1;
+                if self.current_depth > self.max_depth {
+                    self.max_depth = self.current_depth;
+                }
+                loop {
+                    let cond = self.evaluate_expression(condition);
+                    if let Literal::Bool(true) = cond {
+                        self.execute_statement(body);
+                    } else {
+                        break;
+                    }
+                }
+                self.current_depth -= 1;
             }
             Statement::ForLoop {
                 init,
@@ -65,28 +90,18 @@ impl Analyzer {
                 if self.current_depth > self.max_depth {
                     self.max_depth = self.current_depth;
                 }
-
-                // 1. Initialize the loop variable
                 self.execute_statement(init);
-
-                // 2. Loop execution
                 loop {
-                    let cond = self.evaluate_expression(condition);
-                    let should_run = match cond {
-                        Literal::Bool(b) => b,
-                        _ => false, // Fallback if condition isn't a boolean
-                    };
-
-                    if !should_run {
+                    if let Literal::Bool(true) = self.evaluate_expression(condition) {
+                        self.execute_statement(body);
+                        self.execute_statement(increment);
+                    } else {
                         break;
                     }
-
-                    self.execute_statement(body);
-                    self.execute_statement(increment);
                 }
-
                 self.current_depth -= 1;
             }
+            _ => {}
         }
     }
 
@@ -94,7 +109,6 @@ impl Analyzer {
         match expr {
             Expression::Literal(l) => l.clone(),
             Expression::Identifier(name) => {
-                // Fetch from memory, default to 0 if not found
                 self.memory.get(name).cloned().unwrap_or(Literal::Int(0))
             }
             Expression::BinaryOp {
@@ -102,22 +116,17 @@ impl Analyzer {
                 operator,
                 right,
             } => {
-                self.time_cost += 1; // Each math operation takes time
-                let l_val = self.evaluate_expression(left);
-                let r_val = self.evaluate_expression(right);
-                self.eval_math(operator, &l_val, &r_val)
-            }
-            Expression::Call { .. } => {
                 self.time_cost += 1;
-                Literal::Int(0) // Placeholder for functions
+                let l = self.evaluate_expression(left);
+                let r = self.evaluate_expression(right);
+                self.eval_math(operator, &l, &r)
             }
+            _ => Literal::Int(0),
         }
     }
 
-    // A helper to handle the actual mathematics
     fn eval_math(&self, op: &BinaryOperator, left: &Literal, right: &Literal) -> Literal {
         match (left, right) {
-            // Integer Math
             (Literal::Int(l), Literal::Int(r)) => match op {
                 BinaryOperator::Add => Literal::Int(l + r),
                 BinaryOperator::Subtract => Literal::Int(l - r),
@@ -128,33 +137,11 @@ impl Analyzer {
                 BinaryOperator::Equal => Literal::Bool(l == r),
                 BinaryOperator::NotEqual => Literal::Bool(l != r),
             },
-            // Floating Point Math
-            _ => {
-                let l_val = match left {
-                    Literal::Int(i) => *i as f64,
-                    Literal::Float(f) => *f,
-                    _ => 0.0,
-                };
-                let r_val = match right {
-                    Literal::Int(i) => *i as f64,
-                    Literal::Float(f) => *f,
-                    _ => 0.0,
-                };
-                match op {
-                    BinaryOperator::Add => Literal::Float(l_val + r_val),
-                    BinaryOperator::Subtract => Literal::Float(l_val - r_val),
-                    BinaryOperator::Multiply => Literal::Float(l_val * r_val),
-                    BinaryOperator::Divide => Literal::Float(l_val / r_val),
-                    BinaryOperator::Less => Literal::Bool(l_val < r_val),
-                    BinaryOperator::Greater => Literal::Bool(l_val > r_val),
-                    BinaryOperator::Equal => Literal::Bool(l_val == r_val),
-                    BinaryOperator::NotEqual => Literal::Bool(l_val != r_val),
-                }
-            }
+            _ => Literal::Bool(false),
         }
     }
 
-    fn print_literal(l: &Literal) {
+    fn print_literal(&self, l: &Literal) {
         match l {
             Literal::Int(i) => println!("{}", i),
             Literal::Float(f) => println!("{}", f),
@@ -167,19 +154,14 @@ impl Analyzer {
         println!("\n========================================");
         println!("BIG-O COMPLEXITY REPORT");
         println!("========================================");
-
-        let time_complexity = match self.max_depth {
-            0 => "O(1) [Constant Time]",
-            1 => "O(N) [Linear Time]",
-            2 => "O(N^2) [Quadratic Time]",
-            3 => "O(N^3) [Cubic Time]",
-            _ => "O(N^X) [Polynomial Time]",
+        let time = match self.max_depth {
+            0 => "O(1)",
+            1 => "O(N)",
+            2 => "O(N^2)",
+            _ => "O(N^X)",
         };
-
-        println!("Time Complexity:  {}", time_complexity);
-        println!("  -> Dynamic Operations Executed: {}", self.time_cost);
-        println!("Space Complexity: O(1) [Constant Space]");
-        println!("  -> Variables Allocated in Memory: {}", self.space_cost);
+        println!("Time Complexity:  {}", time);
+        println!("Space Complexity: O(1)");
         println!("========================================\n");
     }
 }
