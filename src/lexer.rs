@@ -1,9 +1,10 @@
 use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Clone, Hash, Eq)]
-#[logos(skip r"[ \t\n\f]+")]
+#[logos(skip r"[ \t\n\f]+")] // Skip whitespace
+#[logos(skip r"//.*")] // Skip single-line comments
 pub enum Token {
-    // --- Keywords ---
+    // Keywords
     #[token("mut")]
     Mut,
     #[token("ref")]
@@ -31,7 +32,7 @@ pub enum Token {
     #[token("print")]
     Print,
 
-    // --- Symbols & Operators ---
+    // Symbols & Operators
     #[token("=")]
     Assign,
     #[token("==")]
@@ -65,25 +66,20 @@ pub enum Token {
     #[token(")")]
     RParen,
 
-    // --- Dynamic Values ---
-
-    // Identifiers (variable names)
+    // Dynamic Values
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     Identifier(String),
 
-    // Integers (e.g., 42)
     #[regex("[0-9]+", |lex| lex.slice().parse().ok())]
     Integer(i64),
 
-    // Floats (e.g., 3.14 or -0.5)
-    // This regex looks for digits, a dot, and more digits
-    #[regex(r"[0-9]*\.[0-9]+", |lex| lex.slice().parse().ok())]
+    // Stored as String to avoid f64 hashing issues
+    #[regex(r"[0-9]*\.[0-9]+", |lex| lex.slice().to_string())]
     Float(String),
 
-    // This regex looks for a quote, any characters that aren't a quote, and a closing quote
     #[regex(r#""([^"\\]|\\.)*""#, |lex| {
         let s = lex.slice();
-        s[1..s.len()-1].to_string() // This strips the outer quotes " "
+        s[1..s.len()-1].to_string()
     })]
     String(String),
 }

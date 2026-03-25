@@ -1,20 +1,12 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
-    // A raw value: 5, 3.14, "Hello", or true
     Literal(Literal),
-
-    // A variable name: my_var
     Identifier(String),
-
-    // A math operation: 5 + 10
-    // We use Box<Expression> because an expression can contain another expression
     BinaryOp {
         left: Box<Expression>,
         operator: BinaryOperator,
         right: Box<Expression>,
     },
-
-    // A function call
     Call {
         function: String,
         arguments: Vec<Expression>,
@@ -31,29 +23,35 @@ pub enum Literal {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOperator {
-    Add,      // +
-    Subtract, // -
-    Multiply, // *
-    Divide,   // /
-    Equal,    // ==
-    NotEqual, // !=
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Equal,
+    NotEqual,
+    Less,
+    Greater,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
-    // Variable declaration: mut int x = 5;
     VariableDecl {
         is_mutable: bool,
-        var_type: String, // "int", "float", etc.
+        var_type: String,
         name: String,
         value: Expression,
     },
-    // Print
+    Assignment {
+        name: String,
+        value: Expression,
+    },
     Print(Expression),
-
-    // A standalone expression: print(x);
     Expression(Expression),
-
-    // A block of code: { ... }
     Block(Vec<Statement>),
+    ForLoop {
+        init: Box<Statement>,
+        condition: Expression,
+        increment: Box<Statement>,
+        body: Box<Statement>,
+    },
 }
