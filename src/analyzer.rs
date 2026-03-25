@@ -126,8 +126,9 @@ impl Analyzer {
     }
 
     fn eval_math(&self, op: &BinaryOperator, left: &Literal, right: &Literal) -> Literal {
-        match (left, right) {
-            (Literal::Int(l), Literal::Int(r)) => match op {
+        // First, check if both are Integers for high-speed math
+        if let (Literal::Int(l), Literal::Int(r)) = (left, right) {
+            return match op {
                 BinaryOperator::Add => Literal::Int(l + r),
                 BinaryOperator::Subtract => Literal::Int(l - r),
                 BinaryOperator::Multiply => Literal::Int(l * r),
@@ -136,8 +137,30 @@ impl Analyzer {
                 BinaryOperator::Greater => Literal::Bool(l > r),
                 BinaryOperator::Equal => Literal::Bool(l == r),
                 BinaryOperator::NotEqual => Literal::Bool(l != r),
-            },
-            _ => Literal::Bool(false),
+            };
+        }
+
+        // If either is a Float, convert both to Float and calculate
+        let l_val = match left {
+            Literal::Int(i) => *i as f64,
+            Literal::Float(f) => *f,
+            _ => 0.0,
+        };
+        let r_val = match right {
+            Literal::Int(i) => *i as f64,
+            Literal::Float(f) => *f,
+            _ => 0.0,
+        };
+
+        match op {
+            BinaryOperator::Add => Literal::Float(l_val + r_val),
+            BinaryOperator::Subtract => Literal::Float(l_val - r_val),
+            BinaryOperator::Multiply => Literal::Float(l_val * r_val),
+            BinaryOperator::Divide => Literal::Float(l_val / r_val),
+            BinaryOperator::Less => Literal::Bool(l_val < r_val),
+            BinaryOperator::Greater => Literal::Bool(l_val > r_val),
+            BinaryOperator::Equal => Literal::Bool(l_val == r_val),
+            BinaryOperator::NotEqual => Literal::Bool(l_val != r_val),
         }
     }
 

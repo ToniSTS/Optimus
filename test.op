@@ -1,23 +1,24 @@
-mut int size = 3;
-
-for(mut int i = 1; i < size; i = i + 1) {
-  for(mut int j = 1; j < size; j = j + 1) {
-    mut int calculation = i * j;
-    print(calculation);
+for(mut int i = 0; i < 10; i = i + 1) {
+  for(mut int j = 0; j < 10; j = j + 1) {
+    print(j * i);
   }
 }
 
-mut int num = 10;
+print("For loop works");
 
-if(num > 5) {
-  print("Works");
-} else if (num < 5) {
-  print("Works");
+mut int temperature = 82;
+
+if(temperature < 10) {
+  print("Extreme cold");
+} else if (temperature > 85) {
+  print("Extreme heat");
 } else {
-  print("Works as well");
+  print("It's nice outside");
 }
 
-while(num < 20) {
-  num = num + 1;
-  print(num);
+mut float number = 10.0;
+
+while(number < 20.0) {
+  number = number + .5;
+  print(number);
 }
