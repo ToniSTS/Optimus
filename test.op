@@ -1,3 +1,5 @@
+print("Test File");
+
 for(mut int i = 0; i < 10; i = i + 1) {
   for(mut int j = 0; j < 10; j = j + 1) {
     print(j * i);
@@ -8,6 +10,8 @@ print("For loop works");
 
 mut int temperature = 82;
 
+
+
 if(temperature < 10) {
   print("Extreme cold");
 } else if (temperature > 85) {
@@ -16,13 +20,11 @@ if(temperature < 10) {
   print("It's nice outside");
 }
 
+
+
 mut float number = 10.0;
 
 while(number < 20.0) {
   number = number + .5;
   print(number);
 }
-
-
-
-print("Works");
