@@ -48,6 +48,19 @@ pub enum Statement {
     Print(Expression),
     Expression(Expression),
     Block(Vec<Statement>),
+
+    If {
+        condition: Expression,
+        then_branch: Box<Statement>,
+        else_branch: Option<Box<Statement>>,
+    },
+
+    WhileLoop {
+        condition: Expression,
+        body: Box<Statement>,
+    },
+
+
     ForLoop {
         init: Box<Statement>,
         condition: Expression,

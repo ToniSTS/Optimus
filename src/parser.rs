@@ -104,6 +104,30 @@ pub fn parser() -> impl Parser<Token, Vec<Statement>, Error = Simple<Token>> {
             .delimited_by(just(Token::LBrace), just(Token::RBrace))
             .map(Statement::Block);
 
+        // if statement
+        let if_stmt = just(Token::If)
+            .ignore_then(expr.clone())
+            .then(block.clone())
+            .then(
+                just(Token::Else)
+                    .ignore_then(block.clone())
+                    .or_not()
+            )
+            .map(|((condition, then_branch), else_branch)| Statement::If {
+                condition,
+                then_branch: Box::new(then_branch),
+                else_branch: else_branch.map(Box::new),
+            });
+
+        // while loop
+        let while_loop = just(Token::While)
+            .ignore_then(expr.clone())
+            .then(block.clone())
+            .map(|(condition, body)| Statement::WhileLoop {
+                condition,
+                body: Box::new(body),
+            });
+
         // Java-style For Loop
         let for_loop = just(Token::For)
             .ignore_then(just(Token::LParen))
