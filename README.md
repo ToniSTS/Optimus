@@ -4,26 +4,50 @@ A modern programming language built with Rust, designed to help developers write
 
 ## Overview
 
-Optimus is an educational programming language that analyzes code as you write it. Unlike traditional languages that only report syntax errors, Optimus determines the time and space complexity of your algorithms and provides actionable feedback on how to optimize them.
-
-This makes Optimus particularly valuable for:
-
-- **Students learning data structures and algorithms**
-- **Developers preparing for technical interviews**
-- **Anyone wanting to write more efficient code**
+Optimus is an educational programming language that analyzes your code and determines its time and space complexity, providing actionable feedback on how to optimize algorithms.
 
 ## Key Features
 
-### Real-Time Complexity Analysis
+### Complexity Analysis Engine
 
-Optimus automatically analyzes the time and space complexity of your code and provides feedback directly in the terminal, suggesting specific improvements.
+Optimus executes your code while tracking time and space complexity, generating BIG-O complexity reports:
+
+```
+========================================
+BIG-O COMPLEXITY REPORT
+========================================
+Time Complexity:  O(N)
+Space Complexity: O(1)
+========================================
+```
+
+### Full Control Flow
+
+Support for conditionals and loops with automatic loop depth detection:
+
+```optimus
+// If/else statements
+if (x > 0) {
+    print("positive");
+} else {
+    print("negative");
+}
+
+// While loops
+while (count < 10) {
+    print(count);
+    count = count + 1;
+}
+
+// For loops
+for (mut int i = 0; i < 10; i = i + 1) {
+    print(i);
+}
+```
 
 ### Clean, Readable Syntax
 
-Optimus features a straightforward syntax inspired by modern languages:
-
-```
-// Calculate circle area
+```optimus
 mut float pi = 3.14159;
 float radius = 5.0;
 
@@ -33,16 +57,16 @@ print(area);
 
 ### Mutability Control
 
-Variables are immutable by default for safety. Use the `mut` keyword for variables that need to change:
+Variables are immutable by default. Use `mut` for variables that need to change:
 
-```
+```optimus
 mut int counter = 0;
 counter = counter + 1;  // Allowed
 int value = 5;
 value = 10;  // Error: value is immutable
 ```
 
-### Built-in Type System
+### Full Type System
 
 - `int` - Integer values (64-bit)
 - `float` - Floating-point numbers
@@ -61,20 +85,10 @@ value = 10;  // Error: value is immutable
 cargo build --release
 ```
 
-### Run the Compiler
+### Run a Program
 
 ```bash
-cargo run
-```
-
-### Run Examples
-
-```bash
-# Build and run
-cargo run --release
-
-# Check for errors
-cargo check
+cargo run -- examples/hello.op
 ```
 
 ## Language Syntax
@@ -114,72 +128,77 @@ print(42);
 print(3.14);
 ```
 
-### Control Flow (Coming Soon)
+### Control Flow
 
 ```optimus
-// Conditionals
 if (x > 0) {
     print(x);
 } else {
     print("negative");
 }
 
-// Loops
-for (int i = 0; i < 10; i = i + 1) {
+for (mut int i = 0; i < 10; i = i + 1) {
     print(i);
+}
+
+while (count < 10) {
+    count = count + 1;
 }
 ```
 
-## How Complexity Analysis Works
+## Complexity Analysis
 
-Optimus analyzes your code and detects common patterns that affect performance:
+Optimus analyzes loop nesting depth to determine complexity:
 
-| Pattern                         | Complexity | Feedback                       |
-| ------------------------------- | ---------- | ------------------------------ |
-| Nested loops over the same data | O(n²)      | Consider using a hash map      |
-| Repeated linear searches        | O(n)       | Pre-sort and use binary search |
-| Unbounded recursion             | O(n)       | Consider iterative approach    |
-| Large array allocations         | O(n) space | Reuse buffers when possible    |
+| Loop Depth | Complexity |
+| ---------- | ---------- |
+| 0          | O(1)       |
+| 1          | O(N)       |
+| 2          | O(N²)      |
+| 3+         | O(N^X)     |
 
-Example feedback:
+Example output:
 
 ```
-⚠️  Line 15: Nested loop detected (O(n²))
-   → Consider using a hash map for O(n) lookup
-
-✓  Line 22: Algorithm complexity is optimal (O(n log n))
+========================================
+BIG-O COMPLEXITY REPORT
+========================================
+Time Complexity:  O(N^2)
+Space Complexity: O(1)
+========================================
 ```
 
 ## Roadmap
 
-- [x] Lexer and tokenizer
-- [x] Parser with operator precedence
+- [x] Lexer and tokenizer (logos-based)
+- [x] Parser with operator precedence (chumsky-based)
 - [x] Abstract Syntax Tree (AST) generation
-- [x] Basic arithmetic expression evaluation
-- [ ] Complexity analysis engine
-- [ ] Type inference and checking
-- [ ] If/else conditionals
-- [ ] For and while loops
+- [x] Arithmetic expression evaluation
+- [x] Complexity analysis engine
+- [x] If/else conditionals
+- [x] For and while loops
+- [ ] Type inference
 - [ ] Functions and user-defined procedures
 - [ ] Standard library
-- [ ] Code generation / interpretation
+- [ ] Bytecode code generation
 
 ## Project Structure
 
 ```
 optimus_compiler/
 ├── src/
-│   ├── main.rs      # Entry point and demo
+│   ├── main.rs      # Entry point
 │   ├── lexer.rs     # Tokenizer (logos-based)
 │   ├── parser.rs    # Parser (chumsky-based)
-│   └── ast.rs       # AST node definitions
+│   ├── ast.rs       # AST node definitions
+│   └── analyzer.rs  # Execution & complexity analysis
 ├── Cargo.toml       # Project manifest
 └── README.md        # This file
 ```
 
 ## Contributing
 
-Contributions are welcome! The project is in early development and there's plenty to work on.
+Contributions are welcome! The project is in active development.
 
 ## License
 
