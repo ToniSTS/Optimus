@@ -199,6 +199,7 @@ impl Analyzer {
         println!("Space Complexity: O(1)");
         println!("========================================\n");
     }
+}
     
     fn literal_to_f64(value: &Literal) -> Result<f64, String> {
     match value {
@@ -206,5 +207,5 @@ impl Analyzer {
         Literal::Float(f) => Ok(*f),
         _ => Err("Expected numeric value".to_string()),
     }
-    }
 }
+
