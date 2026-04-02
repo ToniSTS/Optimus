@@ -67,6 +67,8 @@ pub enum Token {
     LParen,
     #[token(")")]
     RParen,
+    #[token(",")]
+    Comma,
 
     // Dynamic Values
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
