@@ -1,4 +1,5 @@
 use crate::ast::{BinaryOperator, Expression, Literal, Statement};
+use crate::stdlib;
 use std::collections::HashMap;
 
 pub struct Analyzer {
@@ -122,6 +123,17 @@ impl Analyzer {
                 self.eval_math(operator, &l, &r)
             }
             _ => Literal::Int(0),
+            
+            Expression::Call {
+                function,
+                arguments,
+            } => {
+                let mut evaluated = Vec::with_capacity(arguments.len());
+                for arg in arguments {
+                    evaluated.push(self.evaluate_expression(arg)?);
+                }
+                stdlib::call(function, &evaluated)
+            }
         }
     }
 
@@ -186,5 +198,13 @@ impl Analyzer {
         println!("Time Complexity:  {}", time);
         println!("Space Complexity: O(1)");
         println!("========================================\n");
+    }
+    
+    fn literal_to_f64(value: &Literal) -> Result<f64, String> {
+    match value {
+        Literal::Int(i) => Ok(*i as f64),
+        Literal::Float(f) => Ok(*f),
+        _ => Err("Expected numeric value".to_string()),
+    }
     }
 }
