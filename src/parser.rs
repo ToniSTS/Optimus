@@ -5,16 +5,32 @@ use chumsky::prelude::*;
 pub fn parser() -> impl Parser<Token, Vec<Statement>, Error = Simple<Token>> {
     // Parse mathematical expressions and values
     let expr = recursive(|expr| {
-        let val = select! {
+        let literal = select! {
             Token::Integer(n) => Expression::Literal(Literal::Int(n)),
             Token::Float(s) => Expression::Literal(Literal::Float(s.parse().unwrap_or(0.0))),
             Token::String(s) => Expression::Literal(Literal::Str(s)),
             Token::True => Expression::Literal(Literal::Bool(true)),
             Token::False => Expression::Literal(Literal::Bool(false)),
-            Token::Identifier(name) => Expression::Identifier(name),
         };
 
-        let atom = val.or(expr.delimited_by(just(Token::LParen), just(Token::RParen)));
+        let identifier = select! { Token::Identifier(name) => name };
+
+        let call = identifier
+            .clone()
+            .then(
+                expr.clone()
+                    .separated_by(just(Token::Comma))
+                    .allow_trailing()
+                    .delimited_by(just(Token::LParen), just(Token::RParen)),
+            )
+            .map(|(function, arguments)| Expression::Call { function, arguments });
+
+        let variable = identifier.map(Expression::Identifier);
+
+        let atom = literal
+            .or(call)
+            .or(variable)
+            .or(expr.clone().delimited_by(just(Token::LParen), just(Token::RParen)));
 
         let op_mul_div = just(Token::Asterisk)
             .to(BinaryOperator::Multiply)
@@ -37,7 +53,8 @@ pub fn parser() -> impl Parser<Token, Vec<Statement>, Error = Simple<Token>> {
         let op_compare = just(Token::Less)
             .to(BinaryOperator::Less)
             .or(just(Token::Greater).to(BinaryOperator::Greater))
-            .or(just(Token::Equals).to(BinaryOperator::Equal));
+            .or(just(Token::Equals).to(BinaryOperator::Equal))
+            .or(just(Token::NotEquals).to(BinaryOperator::NotEqual));
 
         let sum = product
             .clone()
@@ -85,6 +102,11 @@ pub fn parser() -> impl Parser<Token, Vec<Statement>, Error = Simple<Token>> {
             .then_ignore(just(Token::Assign))
             .then(expr.clone())
             .map(|(name, value)| Statement::Assignment { name, value });
+
+        let expr_stmt = expr
+            .clone()
+            .then_ignore(just(Token::Semicolon))
+            .map(Statement::Expression);
 
         // Standalone statements require semicolons
         let var_decl_stmt = var_decl.clone().then_ignore(just(Token::Semicolon));
