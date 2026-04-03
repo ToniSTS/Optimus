@@ -107,35 +107,40 @@ impl Analyzer {
     }
 
     fn evaluate_expression(&mut self, expr: &Expression) -> Literal {
-        match expr {
-            Expression::Literal(l) => l.clone(),
-            Expression::Identifier(name) => {
-                self.memory.get(name).cloned().unwrap_or(Literal::Int(0))
-            }
-            Expression::BinaryOp {
-                left,
-                operator,
-                right,
-            } => {
-                self.time_cost += 1;
-                let l = self.evaluate_expression(left);
-                let r = self.evaluate_expression(right);
-                self.eval_math(operator, &l, &r)
-            }
-            _ => Literal::Int(0),
-            
-            Expression::Call {
-                function,
-                arguments,
-            } => {
-                let mut evaluated = Vec::with_capacity(arguments.len());
-                for arg in arguments {
-                    evaluated.push(self.evaluate_expression(arg)?);
+    match expr {
+        Expression::Literal(l) => l.clone(),
+        Expression::Identifier(name) => {
+            self.memory.get(name).cloned().unwrap_or(Literal::Int(0))
+        }
+        Expression::BinaryOp {
+            left,
+            operator,
+            right,
+        } => {
+            self.time_cost += 1;
+            let l = self.evaluate_expression(left);
+            let r = self.evaluate_expression(right);
+            self.eval_math(operator, &l, &r)
+        }
+        Expression::Call {
+            function,
+            arguments,
+        } => {
+            let evaluated: Vec<Literal> = arguments
+                .iter()
+                .map(|arg| self.evaluate_expression(arg))
+                .collect();
+
+            match stdlib::call(function, &evaluated) {
+                Ok(value) => value,
+                Err(err) => {
+                    eprintln!("Standard library error: {}", err);
+                    Literal::Int(0)
                 }
-                stdlib::call(function, &evaluated)
             }
         }
     }
+}
 
     fn eval_math(&self, op: &BinaryOperator, left: &Literal, right: &Literal) -> Literal {
         // First, check if both are Integers for high-speed math
