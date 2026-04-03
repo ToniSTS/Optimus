@@ -177,6 +177,7 @@ pub fn parser() -> impl Parser<Token, Vec<Statement>, Error = Simple<Token>> {
         var_decl_stmt
             .or(assignment_stmt)
             .or(print_stmt)
+            .or(expr_stmt)
             .or(for_loop)
             .or(if_stmt)
             .or(while_loop)
