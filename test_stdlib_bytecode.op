@@ -1,0 +1,51 @@
+mut int x = 5;
+mut int y = 2;
+mut float z = 9.0;
+string name = "Optimus";
+bool ready = true;
+
+print("--- basic values ---");
+print(x);
+print(y);
+print(z);
+print(name);
+print(ready);
+
+print("--- stdlib ---");
+print(len(name));
+print(sqrt(z));
+print(abs(0 - 12 + 2));
+print(max(x, 10));
+print(min(y, x));
+print(pow(x, y));
+print(type_of(name));
+print(type_of(z));
+print(type_of(ready));
+
+print("--- comparisons ---");
+print(x > y);
+print(x == 5);
+print(y != 3);
+
+print("--- if / else with stdlib ---");
+if (len(name) > 3) {
+    print("name is long enough");
+} else {
+    print("name is too short");
+}
+
+print("--- while loop ---");
+mut int i = 0;
+while (i < 3) {
+    print(i);
+    i = i + 1;
+}
+
+print("--- for loop ---");
+for (mut int j = 0; j < 3; j = j + 1) {
+    print(pow(j, 2));
+}
+
+print("--- nested stdlib in expressions ---");
+print(max(len("abc"), len("hello")));
+print(min(pow(2, 3), 10));
