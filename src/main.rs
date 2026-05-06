@@ -35,7 +35,10 @@ fn main() {
         return;
     }
 
-    if command == "serve" || command == "gui" {
+    if command == "server" || command == "serve" || command == "gui" {
+        if command == "serve" {
+            println!("Note: `serve` is deprecated. Use `server`.");
+        }
         if let Err(err) = run_gui_server() {
             eprintln!("Error: GUI server failed: {}", err);
             process::exit(1);
@@ -66,7 +69,7 @@ fn print_usage() {
     println!("Usage:");
     println!("  cargo run -- <file.op>");
     println!("  cargo run -- repl");
-    println!("  cargo run -- serve");
+    println!("  cargo run -- server");
 }
 
 fn run_repl() {

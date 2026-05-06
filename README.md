@@ -38,7 +38,7 @@ cargo run -- presentation.op
 ### Start GUI
 
 ```bash
-cargo run -- serve
+cargo run -- server
 ```
 
 Then open `http://127.0.0.1:7878` in your browser.
