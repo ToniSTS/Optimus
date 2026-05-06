@@ -1,8 +1,8 @@
 use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Clone, Hash, Eq)]
-#[logos(skip r"[ \t\n\f]+")] // Skip whitespace
-#[logos(skip r"//.*")] // Skip single-line comments
+#[logos(skip r"[ \t\n\f\r]+")]
+#[logos(skip r"//.*")]
 pub enum Token {
     // Keywords
     #[token("mut")]
@@ -17,6 +17,18 @@ pub enum Token {
     BoolType,
     #[token("string")]
     StringType,
+    #[token("fn")]
+    Fn,
+    #[token("return")]
+    Return,
+    #[token("class")]
+    Class,
+    #[token("module")]
+    Module,
+    #[token("import")]
+    Import,
+    #[token("new")]
+    New,
     #[token("if")]
     If,
     #[token("else")]
@@ -31,20 +43,22 @@ pub enum Token {
     True,
     #[token("false")]
     False,
+    #[token("null")]
+    Null,
     #[token("print")]
     Print,
 
     // Symbols & Operators
-    #[token("=")]
-    Assign,
     #[token("==")]
     Equals,
+    #[token("!=")]
+    NotEquals,
+    #[token("=")]
+    Assign,
     #[token(">")]
     Greater,
     #[token("<")]
     Less,
-    #[token("!=")]
-    NotEquals,
     #[token("+")]
     Plus,
     #[token("-")]
@@ -53,8 +67,16 @@ pub enum Token {
     Asterisk,
     #[token("/")]
     Slash,
+    #[token("!")]
+    Bang,
     #[token(";")]
     Semicolon,
+    #[token(":")]
+    Colon,
+    #[token(",")]
+    Comma,
+    #[token(".")]
+    Dot,
     #[token("{")]
     LBrace,
     #[token("}")]
@@ -68,20 +90,19 @@ pub enum Token {
     #[token(")")]
     RParen,
 
-    // Dynamic Values
+    // Dynamic values
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
     Identifier(String),
 
     #[regex("[0-9]+", |lex| lex.slice().parse().ok())]
     Integer(i64),
 
-    // Stored as String to avoid f64 hashing issues
     #[regex(r"[0-9]*\.[0-9]+", |lex| lex.slice().to_string())]
     Float(String),
 
-    #[regex(r#""([^"\\]|\\.)*""#, |lex| {
+    #[regex(r#"\"([^\"\\]|\\.)*\""#, |lex| {
         let s = lex.slice();
-        s[1..s.len()-1].to_string()
+        s[1..s.len() - 1].to_string()
     })]
     String(String),
 }

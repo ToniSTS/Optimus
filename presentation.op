@@ -1,0 +1,57 @@
+module MathKit {
+  fn square(int n): int {
+    return n * n;
+  }
+
+  fn clamp(int value, int min, int max): int {
+    if (value < min) {
+      return min;
+    } else if (value > max) {
+      return max;
+    } else {
+      return value;
+    }
+  }
+}
+
+import MathKit;
+
+fn sum_to(int n): int {
+  mut int total = 0;
+
+  for (mut int i = 1; i < n + 1; i = i + 1) {
+    total = total + i;
+  }
+
+  return total;
+}
+
+class Counter {
+  mut int value = 0;
+
+  fn init(int start): void {
+    self.value = start;
+    return;
+  }
+
+  fn inc(int by): int {
+    self.value = self.value + by;
+    return self.value;
+  }
+}
+
+mut int n = 10;
+print("sum_to(10) = " + sum_to(n));
+print("square(12) = " + MathKit.square(12));
+print("clamp(120, 0, 100) = " + MathKit.clamp(120, 0, 100));
+
+mut Counter c = new Counter(5);
+print(c);
+print(c.inc(7));
+print(c.value);
+
+mut int countdown = 3;
+while (countdown > 0) {
+  print(countdown);
+  countdown = countdown - 1;
+}

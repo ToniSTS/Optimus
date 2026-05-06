@@ -1,205 +1,146 @@
 # Optimus Programming Language
 
-A modern programming language built with Rust, designed to help developers write efficient code by providing real-time feedback on time and space complexity.
+Optimus is a Rust-based language prototype that combines execution with built-in algorithm complexity reporting.
 
-## Overview
+## What Is Complete
 
-Optimus is an educational programming language that analyzes your code and determines its time and space complexity, providing actionable feedback on how to optimize algorithms.
+This prototype now includes a complete demonstration path with:
 
-## Key Features
+- Primitive data types: `int`, `float`, `bool`, `string`, `null`
+- Mutability control: immutable-by-default variables, explicit `mut`
+- Typed variables and assignments with runtime type checks
+- Arithmetic and comparison expressions
+- Control flow: `if / else if / else`, `while`, `for`
+- Functions with typed parameters and optional typed return values
+- `return` statements
+- Classes with typed fields and methods
+- Object construction with `new`
+- Method calls and field access (`obj.method()`, `obj.field`)
+- Modules and imports (`module`, `import`)
+- Structured runtime errors (immutability/type/undefined symbol errors)
+- Complexity analysis report at the end of execution
+- Interactive REPL framework mode for live demos
 
-### Complexity Analysis Engine
+## Quick Start
 
-Optimus executes your code while tracking time and space complexity, generating BIG-O complexity reports:
-
-```
-========================================
-BIG-O COMPLEXITY REPORT
-========================================
-Time Complexity:  O(N)
-Space Complexity: O(1)
-========================================
-```
-
-### Full Control Flow
-
-Support for conditionals and loops with automatic loop depth detection:
-
-```optimus
-// If/else statements
-if (x > 0) {
-    print("positive");
-} else {
-    print("negative");
-}
-
-// While loops
-while (count < 10) {
-    print(count);
-    count = count + 1;
-}
-
-// For loops
-for (mut int i = 0; i < 10; i = i + 1) {
-    print(i);
-}
-```
-
-### Clean, Readable Syntax
-
-```optimus
-mut float pi = 3.14159;
-float radius = 5.0;
-
-mut float area = pi * radius * radius;
-print(area);
-```
-
-### Mutability Control
-
-Variables are immutable by default. Use `mut` for variables that need to change:
-
-```optimus
-mut int counter = 0;
-counter = counter + 1;  // Allowed
-int value = 5;
-value = 10;  // Error: value is immutable
-```
-
-### Full Type System
-
-- `int` - Integer values (64-bit)
-- `float` - Floating-point numbers
-- `bool` - Boolean values (`true` / `false`)
-- `string` - Text strings
-
-## Getting Started
-
-### Prerequisites
-
-- Rust toolchain (1.75 or later)
-
-### Build from Source
+### Build
 
 ```bash
-cargo build --release
+cargo build
 ```
 
-### Run a Program
+### Run a Script
 
 ```bash
-cargo run -- examples/hello.op
+cargo run -- presentation.op
 ```
 
-## Language Syntax
+### Start GUI
 
-### Variables
-
-```optimus
-int x = 42;
-mut float y = 3.14;
-bool is_active = true;
-string name = "Optimus";
+```bash
+cargo run -- serve
 ```
 
-### Arithmetic Operations
+Then open `http://127.0.0.1:7878` in your browser.
 
-```optimus
-int sum = 10 + 5;      // Addition
-int diff = 10 - 5;     // Subtraction
-int prod = 10 * 5;     // Multiplication
-int quot = 10 / 5;     // Division
+### Start REPL
+
+```bash
+cargo run -- repl
 ```
 
-### Comparison Operators
+REPL commands:
+
+- `:run` execute current buffer
+- `:show` print current buffer
+- `:clear` clear current buffer
+- `:quit` exit REPL
+
+## Presentation Scripts
+
+- `presentation.op`: end-to-end full language showcase
+- `test.op`: legacy stress test with nested loops and control flow
+- `error_demo.op`: runtime error behavior example
+
+## Language Examples
+
+### Function
 
 ```optimus
-bool equal = 10 == 10;   // Equal
-bool not_eq = 10 != 5;   // Not equal
-bool greater = 10 > 5;   // Greater than
-bool less = 5 < 10;      // Less than
-```
-
-### Print Output
-
-```optimus
-print("Hello, Optimus!");
-print(42);
-print(3.14);
-```
-
-### Control Flow
-
-```optimus
-if (x > 0) {
-    print(x);
-} else {
-    print("negative");
-}
-
-for (mut int i = 0; i < 10; i = i + 1) {
-    print(i);
-}
-
-while (count < 10) {
-    count = count + 1;
+fn sum_to(int n): int {
+  mut int total = 0;
+  for (mut int i = 1; i < n + 1; i = i + 1) {
+    total = total + i;
+  }
+  return total;
 }
 ```
 
-## Complexity Analysis
+### Class
 
-Optimus analyzes loop nesting depth to determine complexity:
+```optimus
+class Counter {
+  mut int value = 0;
 
-| Loop Depth | Complexity |
-| ---------- | ---------- |
-| 0          | O(1)       |
-| 1          | O(N)       |
-| 2          | O(N²)      |
-| 3+         | O(N^X)     |
+  fn init(int start): void {
+    self.value = start;
+    return;
+  }
 
-Example output:
-
-```
-========================================
-BIG-O COMPLEXITY REPORT
-========================================
-Time Complexity:  O(N^2)
-Space Complexity: O(1)
-========================================
+  fn inc(int by): int {
+    self.value = self.value + by;
+    return self.value;
+  }
+}
 ```
 
-## Roadmap
+### Module
 
-- [x] Lexer and tokenizer (logos-based)
-- [x] Parser with operator precedence (chumsky-based)
-- [x] Abstract Syntax Tree (AST) generation
-- [x] Arithmetic expression evaluation
-- [x] Complexity analysis engine
-- [x] If/else conditionals
-- [x] For and while loops
-- [ ] Type inference
-- [ ] Functions and user-defined procedures
-- [ ] Standard library
-- [ ] Bytecode code generation
+```optimus
+module MathKit {
+  fn square(int n): int {
+    return n * n;
+  }
+}
+
+import MathKit;
+print(MathKit.square(12));
+```
+
+### Error Handling Example
+
+```optimus
+int immutable_value = 10;
+immutable_value = 11;
+```
+
+Output includes:
+
+```text
+Runtime Error: cannot assign to immutable variable 'immutable_value'
+```
+
+## Complexity Report
+
+Every script run ends with a Big-O summary based on detected loop nesting depth:
+
+- `0` nested loops -> `O(1)`
+- `1` nested loop -> `O(N)`
+- `2` nested loops -> `O(N^2)`
+- `3+` nested loops -> `O(N^X)`
 
 ## Project Structure
 
-```
+```text
 optimus_compiler/
 ├── src/
-│   ├── main.rs      # Entry point
-│   ├── lexer.rs     # Tokenizer (logos-based)
-│   ├── parser.rs    # Parser (chumsky-based)
-│   ├── ast.rs       # AST node definitions
-│   └── analyzer.rs  # Execution & complexity analysis
-├── Cargo.toml       # Project manifest
-└── README.md        # This file
+│   ├── main.rs
+│   ├── lexer.rs
+│   ├── parser.rs
+│   ├── ast.rs
+│   └── analyzer.rs
+├── presentation.op
+├── error_demo.op
+├── test.op
+└── README.md
 ```
-
-## Contributing
-
-Contributions are welcome! The project is in active development.
-
-## License
-
-MIT

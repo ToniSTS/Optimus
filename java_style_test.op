@@ -1,0 +1,23 @@
+class BankAccount {
+  mut int balance = 0;
+
+  fn init(int start): void {
+    self.balance = start;
+    return;
+  }
+
+  fn deposit(int amount): int {
+    self.balance = self.balance + amount;
+    return self.balance;
+  }
+
+  fn withdraw(int amount): int {
+    self.balance = self.balance - amount;
+    return self.balance;
+  }
+}
+
+mut BankAccount acct = new BankAccount(100);
+print(acct.deposit(25));
+print(acct.withdraw(40));
+print(acct.balance);

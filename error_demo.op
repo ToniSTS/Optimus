@@ -1,0 +1,2 @@
+int immutable_value = 10;
+immutable_value = 11;
