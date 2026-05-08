@@ -1,13 +1,13 @@
 use crate::ast::{
-    AssignmentTarget, BinaryOperator, ClassField, Expression, FunctionDecl, Literal, Parameter, Statement,
-    UnaryOperator,
+    AssignmentTarget, BinaryOperator, ClassField, Expression, FunctionDecl, Literal, Parameter,
+    Statement, UnaryOperator,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-enum Value {
+pub(crate) enum RuntimeValue {
     Int(i64),
     Float(f64),
     Bool(bool),
@@ -20,18 +20,37 @@ enum Value {
     },
     Class(Rc<ClassValue>),
     Module(Rc<ModuleValue>),
+    StdlibFunction(String),
     Null,
 }
 
+impl RuntimeValue {
+    pub fn type_name(&self) -> String {
+        match self {
+            RuntimeValue::Int(_) => "int".to_string(),
+            RuntimeValue::Float(_) => "float".to_string(),
+            RuntimeValue::Bool(_) => "bool".to_string(),
+            RuntimeValue::Str(_) => "string".to_string(),
+            RuntimeValue::Null => "null".to_string(),
+            RuntimeValue::Object(_) => "object".to_string(),
+            RuntimeValue::Function(_) => "function".to_string(),
+            RuntimeValue::BoundMethod { .. } => "method".to_string(),
+            RuntimeValue::Class(_) => "class".to_string(),
+            RuntimeValue::Module(_) => "module".to_string(),
+            RuntimeValue::StdlibFunction(_) => "stdlib_function".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-struct VariableSlot {
-    value: Value,
+pub(crate) struct VariableSlot {
+    value: RuntimeValue,
     is_mutable: bool,
     declared_type: Option<String>,
 }
 
 #[derive(Debug, Clone)]
-struct FunctionValue {
+pub(crate) struct FunctionValue {
     name: String,
     params: Vec<Parameter>,
     return_type: Option<String>,
@@ -39,28 +58,28 @@ struct FunctionValue {
 }
 
 #[derive(Debug, Clone)]
-struct ClassValue {
+pub(crate) struct ClassValue {
     name: String,
     fields: Vec<ClassField>,
     methods: HashMap<String, Rc<FunctionValue>>,
 }
 
 #[derive(Debug, Clone)]
-struct ObjectField {
-    value: Value,
+pub(crate) struct ObjectField {
+    value: RuntimeValue,
     is_mutable: bool,
     declared_type: Option<String>,
 }
 
 #[derive(Debug, Clone)]
-struct ObjectInstance {
+pub(crate) struct ObjectInstance {
     class_name: String,
     fields: HashMap<String, ObjectField>,
     methods: HashMap<String, Rc<FunctionValue>>,
 }
 
 #[derive(Debug, Clone)]
-struct ModuleValue {
+pub(crate) struct ModuleValue {
     name: String,
     functions: HashMap<String, Rc<FunctionValue>>,
     classes: HashMap<String, Rc<ClassValue>>,
@@ -68,7 +87,7 @@ struct ModuleValue {
 
 enum ExecOutcome {
     Continue,
-    Return(Value),
+    Return(RuntimeValue),
 }
 
 pub struct Analyzer {
@@ -128,28 +147,34 @@ impl Analyzer {
             } => {
                 let val = self.evaluate_expression(value)?;
                 self.ensure_type_compatibility(var_type, &val)?;
+
                 self.define_variable(
                     name.clone(),
                     val,
                     *is_mutable,
                     Some(var_type.clone()),
                 )?;
+
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::Assignment { target, value } => {
                 let val = self.evaluate_expression(value)?;
                 self.assign_target(target, val)?;
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::Print(expr) => {
                 let val = self.evaluate_expression(expr)?;
                 println!("> {}", self.format_value(&val));
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::Expression(expr) => {
                 let _ = self.evaluate_expression(expr)?;
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::Block(stmts) => {
                 self.scopes.push(HashMap::new());
 
@@ -166,12 +191,14 @@ impl Analyzer {
                 self.scopes.pop();
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::If {
                 condition,
                 then_branch,
                 else_branch,
             } => {
                 let condition_value = self.evaluate_expression(condition)?;
+
                 if self.expect_bool(condition_value, "if condition")? {
                     self.execute_statement(then_branch)
                 } else if let Some(else_stmt) = else_branch {
@@ -180,6 +207,7 @@ impl Analyzer {
                     Ok(ExecOutcome::Continue)
                 }
             }
+
             Statement::WhileLoop { condition, body } => {
                 self.enter_loop();
 
@@ -199,6 +227,7 @@ impl Analyzer {
                 self.exit_loop();
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::ForLoop {
                 init,
                 condition,
@@ -230,18 +259,22 @@ impl Analyzer {
                 self.exit_loop();
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::FunctionDecl(decl) => {
                 let function = self.function_from_decl(decl);
                 self.functions.insert(decl.name.clone(), function);
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::Return(value) => {
                 let resolved = match value {
                     Some(expr) => self.evaluate_expression(expr)?,
-                    None => Value::Null,
+                    None => RuntimeValue::Null,
                 };
+
                 Ok(ExecOutcome::Return(resolved))
             }
+
             Statement::ClassDecl {
                 name,
                 fields,
@@ -251,11 +284,13 @@ impl Analyzer {
                 self.classes.insert(name.clone(), class);
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::ModuleDecl { name, body } => {
                 let module = Rc::new(self.module_from_decl(name, body));
                 self.modules.insert(name.clone(), module);
                 Ok(ExecOutcome::Continue)
             }
+
             Statement::Import(name) => {
                 let module = self
                     .modules
@@ -265,7 +300,7 @@ impl Analyzer {
 
                 self.define_variable(
                     name.clone(),
-                    Value::Module(module),
+                    RuntimeValue::Module(module),
                     false,
                     Some("module".to_string()),
                 )?;
@@ -275,14 +310,17 @@ impl Analyzer {
         }
     }
 
-    fn evaluate_expression(&mut self, expr: &Expression) -> Result<Value, String> {
+    fn evaluate_expression(&mut self, expr: &Expression) -> Result<RuntimeValue, String> {
         match expr {
             Expression::Literal(lit) => Ok(self.literal_to_value(lit)),
+
             Expression::Identifier(name) => self.resolve_identifier(name),
+
             Expression::UnaryOp { operator, expr } => {
                 let value = self.evaluate_expression(expr)?;
                 self.evaluate_unary(operator, value)
             }
+
             Expression::BinaryOp {
                 left,
                 operator,
@@ -292,18 +330,24 @@ impl Analyzer {
                 let r = self.evaluate_expression(right)?;
                 self.evaluate_binary(operator, l, r)
             }
+
             Expression::MemberAccess { object, member } => {
                 let object_value = self.evaluate_expression(object)?;
                 self.resolve_member(object_value, member)
             }
+
             Expression::Call { callee, arguments } => {
                 let callee_value = self.evaluate_expression(callee)?;
+
                 let mut args = Vec::with_capacity(arguments.len());
+
                 for arg in arguments {
                     args.push(self.evaluate_expression(arg)?);
                 }
+
                 self.call_value(callee_value, args)
             }
+
             Expression::New {
                 class_name,
                 arguments,
@@ -313,16 +357,19 @@ impl Analyzer {
                     .get(class_name)
                     .cloned()
                     .ok_or_else(|| format!("class '{}' not found", class_name))?;
+
                 let mut args = Vec::with_capacity(arguments.len());
+
                 for arg in arguments {
                     args.push(self.evaluate_expression(arg)?);
                 }
+
                 self.instantiate_class(class, args)
             }
         }
     }
 
-    fn resolve_identifier(&self, name: &str) -> Result<Value, String> {
+    fn resolve_identifier(&self, name: &str) -> Result<RuntimeValue, String> {
         for scope in self.scopes.iter().rev() {
             if let Some(slot) = scope.get(name) {
                 return Ok(slot.value.clone());
@@ -330,23 +377,27 @@ impl Analyzer {
         }
 
         if let Some(function) = self.functions.get(name) {
-            return Ok(Value::Function(function.clone()));
+            return Ok(RuntimeValue::Function(function.clone()));
         }
 
         if let Some(class) = self.classes.get(name) {
-            return Ok(Value::Class(class.clone()));
+            return Ok(RuntimeValue::Class(class.clone()));
         }
 
         if let Some(module) = self.modules.get(name) {
-            return Ok(Value::Module(module.clone()));
+            return Ok(RuntimeValue::Module(module.clone()));
+        }
+
+        if matches!(name, "max" | "min" | "abs" | "typeOf") {
+            return Ok(RuntimeValue::StdlibFunction(name.to_string()));
         }
 
         Err(format!("undefined identifier '{}'", name))
     }
 
-    fn resolve_member(&self, value: Value, member: &str) -> Result<Value, String> {
+    fn resolve_member(&self, value: RuntimeValue, member: &str) -> Result<RuntimeValue, String> {
         match value {
-            Value::Object(obj_ref) => {
+            RuntimeValue::Object(obj_ref) => {
                 let obj = obj_ref.borrow();
 
                 if let Some(field) = obj.fields.get(member) {
@@ -354,7 +405,7 @@ impl Analyzer {
                 }
 
                 if let Some(method) = obj.methods.get(member) {
-                    return Ok(Value::BoundMethod {
+                    return Ok(RuntimeValue::BoundMethod {
                         receiver: obj_ref.clone(),
                         function: method.clone(),
                     });
@@ -365,13 +416,14 @@ impl Analyzer {
                     obj.class_name, member
                 ))
             }
-            Value::Module(module_ref) => {
+
+            RuntimeValue::Module(module_ref) => {
                 if let Some(function) = module_ref.functions.get(member) {
-                    return Ok(Value::Function(function.clone()));
+                    return Ok(RuntimeValue::Function(function.clone()));
                 }
 
                 if let Some(class) = module_ref.classes.get(member) {
-                    return Ok(Value::Class(class.clone()));
+                    return Ok(RuntimeValue::Class(class.clone()));
                 }
 
                 Err(format!(
@@ -379,9 +431,10 @@ impl Analyzer {
                     module_ref.name, member
                 ))
             }
-            Value::Class(class_ref) => {
+
+            RuntimeValue::Class(class_ref) => {
                 if let Some(method) = class_ref.methods.get(member) {
-                    return Ok(Value::Function(method.clone()));
+                    return Ok(RuntimeValue::Function(method.clone()));
                 }
 
                 Err(format!(
@@ -389,6 +442,7 @@ impl Analyzer {
                     class_ref.name, member
                 ))
             }
+
             other => Err(format!(
                 "cannot access member '{}' on value of type '{}'",
                 member,
@@ -397,13 +451,22 @@ impl Analyzer {
         }
     }
 
-    fn call_value(&mut self, callee: Value, args: Vec<Value>) -> Result<Value, String> {
+    fn call_value(
+        &mut self,
+        callee: RuntimeValue,
+        args: Vec<RuntimeValue>,
+    ) -> Result<RuntimeValue, String> {
         match callee {
-            Value::Function(function) => self.call_function(function, args, None),
-            Value::BoundMethod { receiver, function } => {
+            RuntimeValue::Function(function) => self.call_function(function, args, None),
+
+            RuntimeValue::BoundMethod { receiver, function } => {
                 self.call_function(function, args, Some(receiver))
             }
-            Value::Class(class_ref) => self.instantiate_class(class_ref, args),
+
+            RuntimeValue::Class(class_ref) => self.instantiate_class(class_ref, args),
+
+            RuntimeValue::StdlibFunction(name) => crate::stdlib::call_stdlib_function(&name, args),
+
             other => Err(format!(
                 "attempted to call non-callable value of type '{}'",
                 self.type_of_value(&other)
@@ -414,9 +477,9 @@ impl Analyzer {
     fn call_function(
         &mut self,
         function: Rc<FunctionValue>,
-        args: Vec<Value>,
+        args: Vec<RuntimeValue>,
         receiver: Option<Rc<RefCell<ObjectInstance>>>,
-    ) -> Result<Value, String> {
+    ) -> Result<RuntimeValue, String> {
         if args.len() != function.params.len() {
             return Err(format!(
                 "function '{}' expected {} arguments but got {}",
@@ -430,9 +493,10 @@ impl Analyzer {
 
         if let Some(obj_ref) = receiver {
             let class_name = obj_ref.borrow().class_name.clone();
+
             self.define_variable(
                 "self".to_string(),
-                Value::Object(obj_ref),
+                RuntimeValue::Object(obj_ref),
                 false,
                 Some(class_name),
             )?;
@@ -440,6 +504,7 @@ impl Analyzer {
 
         for (param, arg) in function.params.iter().zip(args.into_iter()) {
             self.ensure_type_compatibility(&param.type_name, &arg)?;
+
             self.define_variable(
                 param.name.clone(),
                 arg,
@@ -449,10 +514,11 @@ impl Analyzer {
         }
 
         let execution = self.execute_statement(&function.body);
+
         self.scopes.pop();
 
         let return_value = match execution? {
-            ExecOutcome::Continue => Value::Null,
+            ExecOutcome::Continue => RuntimeValue::Null,
             ExecOutcome::Return(v) => v,
         };
 
@@ -466,8 +532,8 @@ impl Analyzer {
     fn instantiate_class(
         &mut self,
         class_def: Rc<ClassValue>,
-        args: Vec<Value>,
-    ) -> Result<Value, String> {
+        args: Vec<RuntimeValue>,
+    ) -> Result<RuntimeValue, String> {
         let mut fields = HashMap::new();
 
         for field in &class_def.fields {
@@ -506,17 +572,22 @@ impl Analyzer {
             ));
         }
 
-        Ok(Value::Object(object))
+        Ok(RuntimeValue::Object(object))
     }
 
-    fn assign_target(&mut self, target: &AssignmentTarget, value: Value) -> Result<(), String> {
+    fn assign_target(
+        &mut self,
+        target: &AssignmentTarget,
+        value: RuntimeValue,
+    ) -> Result<(), String> {
         match target {
             AssignmentTarget::Identifier(name) => self.assign_identifier(name, value),
+
             AssignmentTarget::MemberAccess { object, member } => {
                 let object_value = self.evaluate_expression(object)?;
 
                 match object_value {
-                    Value::Object(object_ref) => {
+                    RuntimeValue::Object(object_ref) => {
                         let mut object = object_ref.borrow_mut();
                         let class_name = object.class_name.clone();
 
@@ -536,10 +607,12 @@ impl Analyzer {
                         }
 
                         field.value = value;
+
                         Ok(())
                     }
+
                     other => Err(format!(
-                        "assignment target is not an object field (found '{}')",
+                        "assignment target is not an object field, found '{}'",
                         self.type_of_value(&other)
                     )),
                 }
@@ -547,7 +620,7 @@ impl Analyzer {
         }
     }
 
-    fn assign_identifier(&mut self, name: &str, value: Value) -> Result<(), String> {
+    fn assign_identifier(&mut self, name: &str, value: RuntimeValue) -> Result<(), String> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(slot) = scope.get_mut(name) {
                 if !slot.is_mutable {
@@ -559,6 +632,7 @@ impl Analyzer {
                 }
 
                 slot.value = value;
+
                 return Ok(());
             }
         }
@@ -569,7 +643,7 @@ impl Analyzer {
     fn define_variable(
         &mut self,
         name: String,
-        value: Value,
+        value: RuntimeValue,
         is_mutable: bool,
         declared_type: Option<String>,
     ) -> Result<(), String> {
@@ -592,21 +666,27 @@ impl Analyzer {
         );
 
         self.space_allocations += 1;
+
         Ok(())
     }
 
-    fn evaluate_unary(&self, operator: &UnaryOperator, value: Value) -> Result<Value, String> {
+    fn evaluate_unary(
+        &self,
+        operator: &UnaryOperator,
+        value: RuntimeValue,
+    ) -> Result<RuntimeValue, String> {
         match operator {
             UnaryOperator::Negate => match value {
-                Value::Int(v) => Ok(Value::Int(-v)),
-                Value::Float(v) => Ok(Value::Float(-v)),
+                RuntimeValue::Int(v) => Ok(RuntimeValue::Int(-v)),
+                RuntimeValue::Float(v) => Ok(RuntimeValue::Float(-v)),
                 other => Err(format!(
                     "cannot apply unary '-' to type '{}'",
                     self.type_of_value(&other)
                 )),
             },
+
             UnaryOperator::Not => match value {
-                Value::Bool(v) => Ok(Value::Bool(!v)),
+                RuntimeValue::Bool(v) => Ok(RuntimeValue::Bool(!v)),
                 other => Err(format!(
                     "cannot apply unary '!' to type '{}'",
                     self.type_of_value(&other)
@@ -618,53 +698,87 @@ impl Analyzer {
     fn evaluate_binary(
         &self,
         operator: &BinaryOperator,
-        left: Value,
-        right: Value,
-    ) -> Result<Value, String> {
+        left: RuntimeValue,
+        right: RuntimeValue,
+    ) -> Result<RuntimeValue, String> {
         match operator {
             BinaryOperator::Add => match (&left, &right) {
-                (Value::Int(l), Value::Int(r)) => Ok(Value::Int(l + r)),
-                (Value::Float(l), Value::Float(r)) => Ok(Value::Float(l + r)),
-                (Value::Int(l), Value::Float(r)) => Ok(Value::Float((*l as f64) + r)),
-                (Value::Float(l), Value::Int(r)) => Ok(Value::Float(l + (*r as f64))),
-                (Value::Str(_), _) | (_, Value::Str(_)) => {
-                    Ok(Value::Str(format!("{}{}", self.format_value(&left), self.format_value(&right))))
+                (RuntimeValue::Int(l), RuntimeValue::Int(r)) => Ok(RuntimeValue::Int(l + r)),
+
+                (RuntimeValue::Float(l), RuntimeValue::Float(r)) => {
+                    Ok(RuntimeValue::Float(l + r))
                 }
+
+                (RuntimeValue::Int(l), RuntimeValue::Float(r)) => {
+                    Ok(RuntimeValue::Float((*l as f64) + r))
+                }
+
+                (RuntimeValue::Float(l), RuntimeValue::Int(r)) => {
+                    Ok(RuntimeValue::Float(l + (*r as f64)))
+                }
+
+                (RuntimeValue::Str(_), _) | (_, RuntimeValue::Str(_)) => Ok(RuntimeValue::Str(
+                    format!("{}{}", self.format_value(&left), self.format_value(&right)),
+                )),
+
                 _ => Err(format!(
                     "operator '+' is not valid for '{}' and '{}'",
                     self.type_of_value(&left),
                     self.type_of_value(&right)
                 )),
             },
-            BinaryOperator::Subtract => self.numeric_binary(left, right, |l, r| l - r, |l, r| l - r),
-            BinaryOperator::Multiply => self.numeric_binary(left, right, |l, r| l * r, |l, r| l * r),
+
+            BinaryOperator::Subtract => {
+                self.numeric_binary(left, right, |l, r| l - r, |l, r| l - r)
+            }
+
+            BinaryOperator::Multiply => {
+                self.numeric_binary(left, right, |l, r| l * r, |l, r| l * r)
+            }
+
             BinaryOperator::Divide => {
-                let right_is_zero = matches!(right, Value::Int(0))
-                    || matches!(right, Value::Float(v) if v == 0.0);
+                let right_is_zero = matches!(right, RuntimeValue::Int(0))
+                    || matches!(right, RuntimeValue::Float(v) if v == 0.0);
+
                 if right_is_zero {
                     return Err("division by zero".to_string());
                 }
+
                 self.numeric_binary(left, right, |l, r| l / r, |l, r| l / r)
             }
+
             BinaryOperator::Less => self.numeric_compare(left, right, |l, r| l < r),
+
             BinaryOperator::Greater => self.numeric_compare(left, right, |l, r| l > r),
-            BinaryOperator::Equal => Ok(Value::Bool(self.values_equal(&left, &right))),
-            BinaryOperator::NotEqual => Ok(Value::Bool(!self.values_equal(&left, &right))),
+
+            BinaryOperator::Equal => Ok(RuntimeValue::Bool(self.values_equal(&left, &right))),
+
+            BinaryOperator::NotEqual => Ok(RuntimeValue::Bool(!self.values_equal(&left, &right))),
         }
     }
 
     fn numeric_binary(
         &self,
-        left: Value,
-        right: Value,
+        left: RuntimeValue,
+        right: RuntimeValue,
         int_op: impl FnOnce(i64, i64) -> i64,
         float_op: impl FnOnce(f64, f64) -> f64,
-    ) -> Result<Value, String> {
+    ) -> Result<RuntimeValue, String> {
         match (left, right) {
-            (Value::Int(l), Value::Int(r)) => Ok(Value::Int(int_op(l, r))),
-            (Value::Float(l), Value::Float(r)) => Ok(Value::Float(float_op(l, r))),
-            (Value::Int(l), Value::Float(r)) => Ok(Value::Float(float_op(l as f64, r))),
-            (Value::Float(l), Value::Int(r)) => Ok(Value::Float(float_op(l, r as f64))),
+            (RuntimeValue::Int(l), RuntimeValue::Int(r)) => Ok(RuntimeValue::Int(int_op(l, r))),
+
+            (RuntimeValue::Float(l), RuntimeValue::Float(r)) => {
+                Ok(RuntimeValue::Float(float_op(l, r)))
+            }
+
+            (RuntimeValue::Int(l), RuntimeValue::Float(r)) => {
+                Ok(RuntimeValue::Float(float_op(l as f64, r)))
+            }
+
+            (RuntimeValue::Float(l), RuntimeValue::Int(r)) => {
+                Ok(RuntimeValue::Float(float_op(l, r as f64)))
+            }
+
             (l, r) => Err(format!(
                 "numeric operator requires numbers, found '{}' and '{}'",
                 self.type_of_value(&l),
@@ -675,15 +789,25 @@ impl Analyzer {
 
     fn numeric_compare(
         &self,
-        left: Value,
-        right: Value,
+        left: RuntimeValue,
+        right: RuntimeValue,
         op: impl FnOnce(f64, f64) -> bool,
-    ) -> Result<Value, String> {
+    ) -> Result<RuntimeValue, String> {
         match (left, right) {
-            (Value::Int(l), Value::Int(r)) => Ok(Value::Bool(op(l as f64, r as f64))),
-            (Value::Float(l), Value::Float(r)) => Ok(Value::Bool(op(l, r))),
-            (Value::Int(l), Value::Float(r)) => Ok(Value::Bool(op(l as f64, r))),
-            (Value::Float(l), Value::Int(r)) => Ok(Value::Bool(op(l, r as f64))),
+            (RuntimeValue::Int(l), RuntimeValue::Int(r)) => {
+                Ok(RuntimeValue::Bool(op(l as f64, r as f64)))
+            }
+
+            (RuntimeValue::Float(l), RuntimeValue::Float(r)) => Ok(RuntimeValue::Bool(op(l, r))),
+
+            (RuntimeValue::Int(l), RuntimeValue::Float(r)) => {
+                Ok(RuntimeValue::Bool(op(l as f64, r)))
+            }
+
+            (RuntimeValue::Float(l), RuntimeValue::Int(r)) => {
+                Ok(RuntimeValue::Bool(op(l, r as f64)))
+            }
+
             (l, r) => Err(format!(
                 "comparison requires numbers, found '{}' and '{}'",
                 self.type_of_value(&l),
@@ -692,23 +816,32 @@ impl Analyzer {
         }
     }
 
-    fn values_equal(&self, left: &Value, right: &Value) -> bool {
+    fn values_equal(&self, left: &RuntimeValue, right: &RuntimeValue) -> bool {
         match (left, right) {
-            (Value::Int(l), Value::Int(r)) => l == r,
-            (Value::Float(l), Value::Float(r)) => l == r,
-            (Value::Int(l), Value::Float(r)) => (*l as f64) == *r,
-            (Value::Float(l), Value::Int(r)) => *l == (*r as f64),
-            (Value::Bool(l), Value::Bool(r)) => l == r,
-            (Value::Str(l), Value::Str(r)) => l == r,
-            (Value::Null, Value::Null) => true,
-            (Value::Object(l), Value::Object(r)) => Rc::ptr_eq(l, r),
+            (RuntimeValue::Int(l), RuntimeValue::Int(r)) => l == r,
+
+            (RuntimeValue::Float(l), RuntimeValue::Float(r)) => l == r,
+
+            (RuntimeValue::Int(l), RuntimeValue::Float(r)) => (*l as f64) == *r,
+
+            (RuntimeValue::Float(l), RuntimeValue::Int(r)) => *l == (*r as f64),
+
+            (RuntimeValue::Bool(l), RuntimeValue::Bool(r)) => l == r,
+
+            (RuntimeValue::Str(l), RuntimeValue::Str(r)) => l == r,
+
+            (RuntimeValue::Null, RuntimeValue::Null) => true,
+
+            (RuntimeValue::Object(l), RuntimeValue::Object(r)) => Rc::ptr_eq(l, r),
+
             _ => false,
         }
     }
 
-    fn expect_bool(&self, value: Value, context: &str) -> Result<bool, String> {
+    fn expect_bool(&self, value: RuntimeValue, context: &str) -> Result<bool, String> {
         match value {
-            Value::Bool(v) => Ok(v),
+            RuntimeValue::Bool(v) => Ok(v),
+
             other => Err(format!(
                 "{} must be bool, found '{}'",
                 context,
@@ -717,11 +850,18 @@ impl Analyzer {
         }
     }
 
-    fn ensure_type_compatibility(&self, declared_type: &str, value: &Value) -> Result<(), String> {
+    fn ensure_type_compatibility(
+        &self,
+        declared_type: &str,
+        value: &RuntimeValue,
+    ) -> Result<(), String> {
         Self::ensure_type_compatibility_static(declared_type, value)
     }
 
-    fn ensure_type_compatibility_static(declared_type: &str, value: &Value) -> Result<(), String> {
+    fn ensure_type_compatibility_static(
+        declared_type: &str,
+        value: &RuntimeValue,
+    ) -> Result<(), String> {
         if Self::type_matches_static(declared_type, value) {
             Ok(())
         } else {
@@ -733,78 +873,96 @@ impl Analyzer {
         }
     }
 
-    fn type_matches_static(declared_type: &str, value: &Value) -> bool {
+    fn type_matches_static(declared_type: &str, value: &RuntimeValue) -> bool {
         match declared_type {
-            "int" => matches!(value, Value::Int(_)),
-            "float" => matches!(value, Value::Float(_)),
-            "bool" => matches!(value, Value::Bool(_)),
-            "string" => matches!(value, Value::Str(_)),
-            "void" => matches!(value, Value::Null),
-            "module" => matches!(value, Value::Module(_)),
+            "int" => matches!(value, RuntimeValue::Int(_)),
+            "float" => matches!(value, RuntimeValue::Float(_)),
+            "bool" => matches!(value, RuntimeValue::Bool(_)),
+            "string" => matches!(value, RuntimeValue::Str(_)),
+            "void" => matches!(value, RuntimeValue::Null),
+            "module" => matches!(value, RuntimeValue::Module(_)),
+
             custom => match value {
-                Value::Object(obj_ref) => obj_ref.borrow().class_name == custom,
-                Value::Null => true,
+                RuntimeValue::Object(obj_ref) => obj_ref.borrow().class_name == custom,
+                RuntimeValue::Null => true,
                 _ => false,
             },
         }
     }
 
-    fn type_of_value(&self, value: &Value) -> String {
+    fn type_of_value(&self, value: &RuntimeValue) -> String {
         Self::type_of_value_static(value)
     }
 
-    fn type_of_value_static(value: &Value) -> String {
+    fn type_of_value_static(value: &RuntimeValue) -> String {
         match value {
-            Value::Int(_) => "int".to_string(),
-            Value::Float(_) => "float".to_string(),
-            Value::Bool(_) => "bool".to_string(),
-            Value::Str(_) => "string".to_string(),
-            Value::Null => "null".to_string(),
-            Value::Object(obj_ref) => obj_ref.borrow().class_name.clone(),
-            Value::Function(_) | Value::BoundMethod { .. } => "function".to_string(),
-            Value::Class(class_ref) => format!("class {}", class_ref.name),
-            Value::Module(module_ref) => format!("module {}", module_ref.name),
+            RuntimeValue::Int(_) => "int".to_string(),
+            RuntimeValue::Float(_) => "float".to_string(),
+            RuntimeValue::Bool(_) => "bool".to_string(),
+            RuntimeValue::Str(_) => "string".to_string(),
+            RuntimeValue::Null => "null".to_string(),
+            RuntimeValue::Object(obj_ref) => obj_ref.borrow().class_name.clone(),
+            RuntimeValue::Function(_) | RuntimeValue::BoundMethod { .. } => {
+                "function".to_string()
+            }
+            RuntimeValue::Class(class_ref) => format!("class {}", class_ref.name),
+            RuntimeValue::Module(module_ref) => format!("module {}", module_ref.name),
+            RuntimeValue::StdlibFunction(_) => "stdlib_function".to_string(),
         }
     }
 
-    fn default_value_for_type(&self, type_name: &str) -> Value {
+    fn default_value_for_type(&self, type_name: &str) -> RuntimeValue {
         match type_name {
-            "int" => Value::Int(0),
-            "float" => Value::Float(0.0),
-            "bool" => Value::Bool(false),
-            "string" => Value::Str(String::new()),
-            _ => Value::Null,
+            "int" => RuntimeValue::Int(0),
+            "float" => RuntimeValue::Float(0.0),
+            "bool" => RuntimeValue::Bool(false),
+            "string" => RuntimeValue::Str(String::new()),
+            _ => RuntimeValue::Null,
         }
     }
 
-    fn literal_to_value(&self, literal: &Literal) -> Value {
+    fn literal_to_value(&self, literal: &Literal) -> RuntimeValue {
         match literal {
-            Literal::Int(v) => Value::Int(*v),
-            Literal::Float(v) => Value::Float(*v),
-            Literal::Str(v) => Value::Str(v.clone()),
-            Literal::Bool(v) => Value::Bool(*v),
-            Literal::Null => Value::Null,
+            Literal::Int(v) => RuntimeValue::Int(*v),
+            Literal::Float(v) => RuntimeValue::Float(*v),
+            Literal::Str(v) => RuntimeValue::Str(v.clone()),
+            Literal::Bool(v) => RuntimeValue::Bool(*v),
+            Literal::Null => RuntimeValue::Null,
         }
     }
 
-    fn format_value(&self, value: &Value) -> String {
+    fn format_value(&self, value: &RuntimeValue) -> String {
         match value {
-            Value::Int(v) => v.to_string(),
-            Value::Float(v) => v.to_string(),
-            Value::Bool(v) => v.to_string(),
-            Value::Str(v) => v.clone(),
-            Value::Null => "null".to_string(),
-            Value::Function(func) => format!("<fn {}>", func.name),
-            Value::BoundMethod { function, .. } => format!("<method {}>", function.name),
-            Value::Class(class_ref) => format!("<class {}>", class_ref.name),
-            Value::Module(module_ref) => format!("<module {}>", module_ref.name),
-            Value::Object(obj_ref) => {
+            RuntimeValue::Int(v) => v.to_string(),
+
+            RuntimeValue::Float(v) => v.to_string(),
+
+            RuntimeValue::Bool(v) => v.to_string(),
+
+            RuntimeValue::Str(v) => v.clone(),
+
+            RuntimeValue::Null => "null".to_string(),
+
+            RuntimeValue::Function(func) => format!("<fn {}>", func.name),
+
+            RuntimeValue::BoundMethod { function, .. } => format!("<method {}>", function.name),
+
+            RuntimeValue::Class(class_ref) => format!("<class {}>", class_ref.name),
+
+            RuntimeValue::Module(module_ref) => format!("<module {}>", module_ref.name),
+
+            RuntimeValue::StdlibFunction(name) => format!("<stdlib fn {}>", name),
+
+            RuntimeValue::Object(obj_ref) => {
                 let obj = obj_ref.borrow();
                 let mut parts = Vec::new();
+
                 for (name, field) in &obj.fields {
                     parts.push(format!("{}: {}", name, self.format_value(&field.value)));
                 }
+
                 parts.sort();
+
                 format!("{} {{ {} }}", obj.class_name, parts.join(", "))
             }
         }
@@ -847,6 +1005,7 @@ impl Analyzer {
                 Statement::FunctionDecl(decl) => {
                     functions.insert(decl.name.clone(), self.function_from_decl(decl));
                 }
+
                 Statement::ClassDecl {
                     name,
                     fields,
@@ -857,6 +1016,7 @@ impl Analyzer {
                         Rc::new(self.class_from_decl(name, fields, methods)),
                     );
                 }
+
                 _ => {}
             }
         }
@@ -870,6 +1030,7 @@ impl Analyzer {
 
     fn enter_loop(&mut self) {
         self.current_depth += 1;
+
         if self.current_depth > self.max_depth {
             self.max_depth = self.current_depth;
         }
@@ -897,19 +1058,21 @@ impl Analyzer {
             _ => "O(N^X)",
         };
 
-        let space = if self.space_allocations > 100 { "O(N)" } else { "O(1)" };
+        let space = if self.space_allocations > 100 {
+            "O(N)"
+        } else {
+            "O(1)"
+        };
 
         println!(
-    r#"<div class="complexity-report">
-    <span class="metric time">Time Complexity:  {}</span>
-    <span class="metric space">Space Complexity: {}</span>
-    <span class="metric ops">Operations:       {}</span>
-    <span class="metric alloc">Allocations:      {}</span>
-    </div>"#,
-        time,
-        space,
-        self.time_cost,
-        self.space_allocations
-    );
+            r#"<div class="complexity-report">
+  <span class="metric time">Time Complexity:  {}</span>
+  <span class="metric space">Space Complexity: {}</span>
+  <span class="metric ops">Operations:       {}</span>
+  <span class="metric alloc">Allocations:      {}</span>
+</div>"#,
+            time, space, self.time_cost, self.space_allocations
+        );
+
     }
 }
